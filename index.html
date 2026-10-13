@@ -127,6 +127,33 @@ footer{border-top:1px solid var(--line);text-align:center;padding:40px 16px calc
 .fnote{color:var(--muted);font-weight:300;font-size:clamp(15px,4vw,18px)}
 .bye{margin-top:6px;font-weight:800;font-size:clamp(46px,14vw,92px);line-height:1.3;color:var(--g);text-shadow:0 0 24px rgba(245,158,11,.55),0 0 60px rgba(168,85,247,.35)}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+/* ===== Whiteboard video ===== */
+:root{--wb-ink:#F5F3FF}
+:root[data-theme="light"]{--wb-ink:#1A1030}
+.tabs.six{grid-template-columns:repeat(2,1fr)}
+@media(min-width:700px){.tabs.six{grid-template-columns:repeat(6,1fr)}}
+.wb{width:100%;max-width:none;margin-inline:auto}
+.wb-stage{position:relative;width:calc(100% + 24px);margin-inline:-12px;aspect-ratio:16/9;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background-color:var(--card);background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:36px 36px}
+.wb-svg{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .5s}
+.wb-svg.on{opacity:1}
+.wb-ln{fill:none;stroke:var(--wb-ink);stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+.wb-pen-b{stroke:var(--wb-ink);stroke-width:2;stroke-linejoin:round}
+.wb-tx{font-family:'Alexandria',sans-serif;font-weight:700;fill:var(--wb-ink);text-anchor:middle}
+.wb-ctrl{display:flex;align-items:center;gap:10px;margin-top:14px}
+.wb-btn{width:44px;height:44px;flex:none;border-radius:50%;border:1px solid var(--g);background:var(--card);color:var(--g);font-size:16px;cursor:pointer;display:grid;place-items:center;transition:.2s}
+.wb-prog{position:relative;flex:1;height:8px;border-radius:99px;background:var(--line);cursor:pointer;direction:ltr}
+.wb-prog i{position:absolute;top:0;left:0;bottom:0;width:0;border-radius:inherit;background:linear-gradient(90deg,var(--p),var(--g));box-shadow:0 0 12px rgba(245,158,11,.5);pointer-events:none}
+.wb-time{font-size:13px;color:var(--muted);direction:ltr;white-space:nowrap;font-variant-numeric:tabular-nums}
+.wb-info{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--muted);margin-top:10px}
+.wb-info b{color:var(--g)}
+#wbmsg{color:var(--g)}
+.wb-quiz{background:var(--card);border:1px solid var(--g);border-radius:var(--r);padding:18px 16px;margin-top:16px;box-shadow:0 0 22px rgba(245,158,11,.25);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.wb-quiz .mq-q{font-size:clamp(16px,4.4vw,19px);margin-bottom:12px}
+.wb-qact{display:flex;justify-content:center;margin-top:14px}
+.wb-end{display:flex;justify-content:center;padding:6px 0}
+.wb-fs{position:absolute;top:8px;inset-inline-end:8px;z-index:2;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--g);font-size:18px;cursor:pointer}
+.wb:fullscreen,.wb:-webkit-full-screen{max-width:none;width:100%;height:100%;overflow:auto;background:var(--bg);padding:10px;box-sizing:border-box}
+.wb:fullscreen .wb-stage,.wb:-webkit-full-screen .wb-stage{width:auto;height:calc(100vh - 130px);aspect-ratio:16/9;margin-inline:auto}
 </style>
 </head>
 <body>
@@ -170,6 +197,7 @@ footer{border-top:1px solid var(--line);text-align:center;padding:40px 16px calc
     <button role="tab" data-t="faq">أسئلة عادية</button>
     <button role="tab" data-t="mcq">أسئلة اختيار من متعدد</button>
     <button role="tab" data-t="map" id="tabmap">خرائط ذهنية قابلة للطباعة</button>
+    <button role="tab" data-t="wb">فيديو الوايت بورد</button>
   </div>
   <section class="panel" id="panel" role="tabpanel"></section>
 </main>
@@ -225,11 +253,11 @@ var CONTENT={"1-1":{"lesson":[["أهداف المقياس",["معرفة البن
   var th=get('theme');if(th)root.setAttribute('data-theme',th);
   $('theme').onclick=function(){var n=root.getAttribute('data-theme')==='dark'?'light':'dark';root.setAttribute('data-theme',n);set('theme',n)};
 
-  function go(v){for(var k in views)views[k].hidden=k!==v;scrollTo(0,0)}
+  function go(v){wbStop();for(var k in views)views[k].hidden=k!==v;scrollTo(0,0)}
 
   $('subjects').innerHTML=SUBJECTS.map(function(s,i){return '<button class="card" data-s="'+i+'"><img src="'+s.img+'" alt="'+s.alt+'" loading="lazy"></button>'}).join('');
   function cur(){return CONTENT[(S+1)+'-'+L]}
-  function updTabs(){$('tabmap').hidden=false;$('tabs').classList.add('five')}
+  function updTabs(){$('tabmap').hidden=false;$('tabs').classList.add('six')}
   var h='';for(var n=1;n<=10;n++)h+='<button class="lec" data-l="'+n+'">محاضرة '+n+'</button>';
   $('lectures').innerHTML=h;
 
@@ -324,9 +352,582 @@ var CONTENT={"1-1":{"lesson":[["أهداف المقياس",["معرفة البن
       }});
   }
 
+  /* ===== أدوات الوايت بورد ===== */
+  var NS='http://www.w3.org/2000/svg',FULL=[0,0,800,450];
+  var WB_COL={gold:'#F59E0B',purple:'#A855F7',green:'#34D399',pink:'#F472B6',blue:'#60A5FA'};
+  var WB_S={host:null,phase:'idle',playing:false,raf:0,timer:0,sc:[],aud:[],dur:[],ans:{},quizEl:null,idx:0};
+
+  function wbP(d,at,dur,fc,fat,fo){return {k:'p',d:d,at:at,dur:dur,fc:fc||null,fat:fat||0,fo:fo||.85}}
+  function wbT(t,x,y,at,s,c){return {k:'t',t:t,x:x,y:y,at:at,s:s||22,c:c||null}}
+  function wbCirc(cx,cy,r){return 'M'+(cx-r)+' '+cy+'a'+r+' '+r+' 0 1 0 '+(2*r)+' 0a'+r+' '+r+' 0 1 0 '+(-2*r)+' 0Z'}
+  function wbRR(x,y,w,h,r){return 'M'+(x+r)+' '+y+'H'+(x+w-r)+'Q'+(x+w)+' '+y+' '+(x+w)+' '+(y+r)+'V'+(y+h-r)+'Q'+(x+w)+' '+(y+h)+' '+(x+w-r)+' '+(y+h)+'H'+(x+r)+'Q'+x+' '+(y+h)+' '+x+' '+(y+h-r)+'V'+(y+r)+'Q'+x+' '+y+' '+(x+r)+' '+y+'Z'}
+  function wbPlus(cx,cy,s){var a=s*.3,b=s;return 'M'+(cx-a)+' '+(cy-b)+'H'+(cx+a)+'V'+(cy-a)+'H'+(cx+b)+'V'+(cy+a)+'H'+(cx+a)+'V'+(cy+b)+'H'+(cx-a)+'V'+(cy+a)+'H'+(cx-b)+'V'+(cy-a)+'H'+(cx-a)+'Z'}
+  function wbShield(cx,cy,s){return 'M'+cx+' '+(cy-s)+'L'+(cx+s*.85)+' '+(cy-s*.5)+'V'+(cy+s*.1)+'C'+(cx+s*.85)+' '+(cy+s*.7)+' '+(cx+s*.4)+' '+(cy+s*.92)+' '+cx+' '+(cy+s)+'C'+(cx-s*.4)+' '+(cy+s*.92)+' '+(cx-s*.85)+' '+(cy+s*.7)+' '+(cx-s*.85)+' '+(cy+s*.1)+'V'+(cy-s*.5)+'Z'}
+  function wbRehab(cx,cy){return 'M'+(cx+20)+' '+(cy-12)+'A22 22 0 1 0 '+(cx+22)+' '+(cy+8)+'M'+(cx+22)+' '+(cy+8)+'L'+(cx+10)+' '+(cy+14)+'M'+(cx+22)+' '+(cy+8)+'L'+(cx+24)+' '+(cy-6)}
+
+  function wbIcon(kind,c,cy,at){
+    if(kind==='check')return [wbP('M'+(c-26)+' '+cy+'L'+(c-8)+' '+(cy+18)+'L'+(c+26)+' '+(cy-20),at,.9)];
+    if(kind==='compass')return [wbP(wbCirc(c,cy,26),at,1.2),wbP('M'+(c-10)+' '+(cy+10)+'L'+(c+10)+' '+(cy-10)+'M'+(c+10)+' '+(cy-10)+'L'+(c+2)+' '+(cy-9)+'M'+(c+10)+' '+(cy-10)+'L'+(c+9)+' '+(cy-2),at+1.2,.8)];
+    if(kind==='pulse')return [wbP('M'+(c-30)+' '+cy+'L'+(c-12)+' '+cy+'L'+(c-5)+' '+(cy-20)+'L'+(c+4)+' '+(cy+20)+'L'+(c+11)+' '+cy+'L'+(c+30)+' '+cy,at,1.6)];
+    if(kind==='plus')return [wbP(wbPlus(c,cy,24),at,1.5)];
+    if(kind==='target')return [wbP(wbCirc(c,cy,26),at,1),wbP(wbCirc(c,cy,14),at+1,.7),wbP(wbCirc(c,cy,3),at+1.7,.4)];
+    if(kind==='shield')return [wbP(wbShield(c,cy,28),at,1.4)];
+    return [wbP(wbRehab(c,cy),at,1.6)];
+  }
+  function wbCards(labels,icons,start,step){
+    var cols=[WB_COL.purple,WB_COL.gold,WB_COL.green,WB_COL.pink],out=[];
+    labels.forEach(function(lb,i){
+      var cx=[140,320,500,680][i],at=start+i*step;
+      out.push(wbP(wbRR(cx-75,130,150,190,16),at,1.4,cols[i],at+1.4,.2));
+      out=out.concat(wbIcon(icons[i],cx,210,at+1.6));
+      out.push(wbT(lb,cx,300,at+3.2,20,null));
+    });
+    return out;
+  }
+  /* ===== فيديو الوايت بورد: النظريات التربوية - المحاضرة 1 (مفتاح 4-1) ===== */
+  /* نوافذ الكاميرا: أربعة أرباع من اللوحة 800x450، كل ربع 400x225 (تكبير 2x) */
+  var Q={TR:[400,0,400,225],TL:[0,0,400,225],BR:[400,225,400,225],BL:[0,225,400,225]};
+  function wbCat(){var a=[],i;for(i=0;i<arguments.length;i++)a=a.concat(arguments[i]);return a}
+  function wbHead(t,cx,y,at,col,sz){return [wbT(t,cx,y,at,sz||30,col),wbP('M'+(cx-120)+' '+(y+13)+'L'+(cx+120)+' '+(y+13),at+.4,.9)]}
+  function wbChip(t,cx,cy,w,at,col,sz){return [wbP(wbRR(cx-w/2,cy-20,w,40,12),at,.9,col,at+.9,.22),wbT(t,cx,cy+8,at+.4,sz||20)]}
+  function wbChk(x,y,at){return wbP('M'+x+' '+y+'L'+(x+9)+' '+(y+10)+'L'+(x+26)+' '+(y-12),at,.7)}
+  function wbArrow(x1,x2,y,at,dur){var d=x1>x2?-1:1;return wbP('M'+x1+' '+y+'L'+x2+' '+y+'M'+(x2-d*14)+' '+(y-9)+'L'+x2+' '+y+'L'+(x2-d*14)+' '+(y+9),at,dur)}
+  function wbRow(name,desc,cxN,cxD,cy,at,dAt,col,wN){return wbCat(wbChip(name,cxN,cy,wN||140,at,col,20),[wbT(desc,cxD,cy+8,dAt,19)])}
+  var C=WB_COL;
+  var WB_SCENES=[
+    /* 1: مفهوم التربية والنظرية التربوية */
+    {title:'المفهوم',src:'s4-l1-scene1.mp3',dur:39.74,
+     cam:[[0,Q.TR],[7.7,Q.BR],[19.4,Q.BL],[26.2,Q.TL],[37.6,FULL]],
+     els:wbCat(
+      wbHead('النظريات التربوية',600,42,.3,C.gold,32),
+      [wbP('M535 100L600 70L665 100Z',1.2,.9),
+       wbP('M550 106L550 140',2.0,.5),wbP('M600 106L600 140',2.3,.5),wbP('M650 106L650 140',2.6,.5),
+       wbP('M530 144L670 144',3.0,.7),
+       wbT('المرتكز الأساسي',600,176,2.7,24,C.purple),
+       wbT('لفهم التعليم والتعلم',600,206,4.8,20)],
+      wbHead('التربية: تنمية متكاملة',600,266,8.3,C.gold,26),
+      [wbP(wbCirc(705,318,16),9.0,.8),wbP('M705 334L705 384',9.7,.6),
+       wbP('M705 348L681 372',10.2,.4),wbP('M705 348L729 372',10.5,.4),
+       wbP('M705 384L687 424',10.9,.4),wbP('M705 384L723 424',11.2,.4),
+       wbT('عقلية',530,318,12.3,24,C.purple),wbT('جسمية',530,348,13.5,24,C.gold),
+       wbT('نفسية',530,378,15.2,24,C.green),wbT('اجتماعية',530,408,16.35,24,C.pink),
+       wbT('أخلاقية',530,438,17.45,24,C.blue)],
+      wbHead('الهدف',200,268,19.9,C.gold,30),
+      [wbT('اكتساب',200,306,21.3,22)],
+      wbChip('المعارف',320,336,104,22.1,C.purple,20),wbChip('المهارات',200,336,104,23.0,C.gold,20),wbChip('القيم',80,336,104,24.0,C.green,20),
+      [wbP('M200 362L200 392M190 382L200 392L210 382',24.5,.7),wbT('التكيف مع المجتمع',200,425,24.9,24,C.pink)],
+      wbHead('النظرية التربوية',200,45,26.9,C.gold,30),
+      [wbT('مجموعة من',200,92,28.95,20)],
+      wbChip('مفاهيم',320,124,104,30.0,C.purple,20),wbChip('مبادئ',200,124,104,31.1,C.gold,20),wbChip('أفكار',80,124,104,32.2,C.green,20),
+      [wbT('تفسر سلوك المتعلم',200,176,33.4,24,C.purple),wbT('وتوجه الممارسة التعليمية',200,208,36.8,22,C.gold)])},
+    /* 2: خصائص التربية وتطورها التاريخي */
+    {title:'الخصائص والتطور',src:'s4-l1-scene2.mp3',dur:39.72,
+     cam:[[0,Q.TR],[11.6,Q.BR],[18.4,Q.BL],[30.2,Q.TL],[37.5,FULL]],
+     els:wbCat(
+      wbHead('خصائص التربية',600,42,.3,C.gold,30),
+      [wbT('عملية مستمرة',600,88,2.2,26,C.purple),wbArrow(740,460,101,2.4,2.6),wbT('طوال حياة الإنسان',600,130,3.8,22)],
+      wbChip('الأسرة',705,166,104,7.0,C.purple,20),wbChip('المدرسة',595,166,104,8.1,C.gold,20),wbChip('المجتمع',485,166,104,9.2,C.green,20),
+      [wbT('لتطوير الشخصية',600,213,10.4,22,C.gold)],
+      [wbT('لم تظهر دفعة واحدة',600,272,12.4,26,C.pink),wbT('بل مرت بمراحل تاريخية',600,318,16.3,26,C.gold),
+       wbP('M440 372L760 372',16.8,1.5),wbP('M470 362L470 382',17.4,.3),wbP('M600 362L600 382',17.6,.3),wbP('M730 362L730 382',17.8,.3)],
+      wbHead('المرحلة الحديثة',200,262,18.9,C.purple,28),
+      wbChip('جان جاك روسو',200,304,200,22.4,C.purple,22),wbChip('جون لوك',200,348,200,24.2,C.gold,22),wbChip('بستالوتزي',200,392,200,25.5,C.green,22),
+      [wbT('الاهتمام بطبيعة الطفل واحتياجاته',200,438,27.0,19)],
+      wbChip('يوهان هربارت',200,40,220,30.9,C.purple,22),wbChip('جون ديوي',200,88,220,32.6,C.gold,22),wbChip('ماريا مونتيسوري',200,136,220,33.9,C.green,22),
+      [wbT('النشاط والخبرة الحياتية',200,200,35.7,22,C.gold)])},
+    /* 3: المراحل الحديثة والمعاصرة للنظريات */
+    {title:'المراحل',src:'s4-l1-scene3.mp3',dur:33.12,
+     cam:[[0,Q.TR],[11.4,Q.BR],[18.3,Q.BL],[31.1,FULL]],
+     els:wbCat(
+      wbHead('الدراسات التربوية',600,42,.4,C.gold,30),
+      [wbT('المرحلة العلمية والنفسية',600,92,2.9,24,C.purple),wbT('القرنان 19 و 20',600,134,5.4,24)],
+      wbChip('التأمل الفلسفي',700,182,150,8.3,C.purple,18),
+      [wbArrow(620,570,182,9.5,.7)],
+      wbChip('البحث التجريبي',490,182,150,10.0,C.gold,18),
+      wbHead('اتجاهات بارزة',600,268,11.8,C.gold,28),
+      wbChip('السلوكية',705,335,104,13.9,C.purple,20),wbChip('المعرفية',595,335,104,15.2,C.gold,20),wbChip('البنائية',485,335,104,16.35,C.green,20),
+      wbHead('المرحلة المعاصرة',200,262,18.7,C.purple,28),
+      wbChip('التكنولوجيا',200,312,250,23.2,C.purple,22),wbChip('العلوم المعرفية',200,358,250,24.9,C.gold,22),wbChip('التعلم الإلكتروني',200,404,250,26.4,C.green,22),
+      [wbT('المتعلم عنصر نشط في بناء المعرفة',200,442,28.3,19,C.gold)])},
+    /* 4: ظهور علم النفس واتجاهاته التعلمية */
+    {title:'علم النفس',src:'s4-l1-scene4.mp3',dur:32.06,
+     cam:[[0,Q.TR],[10.4,Q.BR],[21.3,Q.BL]],
+     els:wbCat(
+      wbHead('علم النفس',600,42,.4,C.gold,30),
+      [wbT('ارتبط قديما بالفلسفة',600,96,1.5,24),wbT('استقل في أواخر القرن 19',600,142,4.2,24,C.purple)],
+      wbChip('الملاحظة',640,190,120,8.6,C.green,20),wbChip('التجربة',500,190,120,9.3,C.pink,20),
+      wbHead('نظريات تعليمية متنوعة',600,265,10.7,C.gold,26),
+      wbRow('السلوكية','المثير والاستجابة',715,520,325,14.75,17.4,C.purple),
+      wbRow('المعرفية','التفكير والذاكرة',715,520,390,18.8,20.2,C.gold),
+      wbRow('البنائية','يبني معرفته بنفسه',310,125,290,21.9,24.1,C.green),
+      wbRow('الاجتماعية','الملاحظة',310,115,350,25.8,28.5,C.pink),
+      wbRow('الإنسانية','تحقيق الذات',310,125,410,29.5,30.9,C.blue))},
+    /* 5: الأسئلة الجوهرية وعناصر النظرية */
+    {title:'العناصر',src:'s4-l1-scene5.mp3',dur:30.55,
+     cam:[[0,Q.TR],[11.2,Q.BR],[23.0,Q.BL]],
+     els:wbCat(
+      wbHead('أسئلة حاسمة',600,42,.4,C.gold,30),
+      [wbT('كيف يتعلم الإنسان؟',600,100,4.3,24,C.purple),wbT('ما دور المعلم والمتعلم؟',600,148,6.3,24,C.green),wbT('كيف ننظم البيئة التعليمية؟',600,196,8.8,24,C.pink)],
+      wbHead('عناصر النظرية الستة',600,265,11.5,C.gold,26),
+      wbRow('المفاهيم','الذاكرة والسلوك',715,520,318,16.5,17.4,C.purple,150),
+      wbRow('المبادئ','تفسر العلاقات',715,520,370,18.93,19.7,C.gold,150),
+      wbRow('الافتراضات','طبيعة التعلم',715,520,422,21.28,22.1,C.green,150),
+      wbRow('التفسيرات','العلمية للظواهر',310,115,290,23.67,24.4,C.pink,150),
+      wbRow('التطبيقات','طرق التدريس',310,115,350,25.82,26.9,C.blue,150),
+      wbRow('الأهداف','المرجوة',310,115,410,29.24,29.9,C.purple,150))},
+    /* 6: أهمية النظريات ووظائفها التربوية */
+    {title:'الأهمية',src:'s4-l1-scene6.mp3',dur:32.30,
+     cam:[[0,Q.TR],[9.6,Q.BR],[18.4,Q.BL]],
+     els:wbCat(
+      wbHead('أهمية النظريات',600,42,.4,C.gold,30),
+      [wbT('تفسير عملية التعلم',590,100,3.4,24),wbChk(738,92,3.7),
+       wbT('توجيه المعلم',590,148,5.7,24),wbChk(738,140,6.0),
+       wbT('اختيار طريقة التدريس',590,196,7.3,24),wbChk(738,188,7.6),
+       wbT('كما تساعد على',600,262,10.0,24,C.gold),
+       wbT('فهم الفروق الفردية',590,312,11.0,22),wbChk(738,304,11.3),
+       wbT('تحسين الممارسات الصفية',590,362,13.9,22),wbChk(738,354,14.2),
+       wbT('بناء المناهج الدراسية',590,412,16.3,22),wbChk(738,404,16.6),
+       wbT('تحليل المشكلات التربوية',200,262,20.2,24,C.purple),
+       wbT('ضعف التحصيل',200,306,22.3,24,C.pink),
+       wbT('ربط النظرية بالتطبيق',200,362,24.5,26,C.gold),
+       wbT('ممارسة قائمة على أسس علمية',200,398,26.5,20),
+       wbT('بدلا من العادات التقليدية',200,434,30.3,20,C.pink),
+       wbP('M62 428L338 428',31.2,.8)])}
+  ];
+  /* أسئلة تظهر بعد المشهد (الفهرس يبدأ من 0) */
+  var WB_QZ={
+    1:{q:'أي مفكر بدأت به المرحلة الحديثة للنظريات التربوية؟',o:['جان جاك روسو','جون ديوي','ماريا مونتيسوري'],a:0},
+    3:{q:'أي نظرية تركز على المثير والاستجابة؟',o:['السلوكية','المعرفية','الإنسانية'],a:0},
+    4:{q:'كم عدد العناصر الأساسية للنظرية التربوية؟',o:['أربعة','ستة','ثمانية'],a:1}
+  };
+  var WB_QUIZ=WB_QZ;
+  /* ===== فيديو الوايت بورد: النظريات التربوية - المحاضرة 2 (مفتاح 4-2) ===== */
+  /* نفس الهوية والأدوات والكاميرا؛ التوقيتات مضبوطة على فواصل الصمت في ملفات s4-l2-sceneN.mp3 */
+  var WB_SCENES2=[
+    /* 1: تمهيد + أفلاطون */
+    {title:'أفلاطون',src:'s4-l2-scene1.mp3',dur:41.59,
+     cam:[[0,Q.TR],[12.3,Q.BR],[26.4,Q.BL],[38.9,FULL]],
+     els:wbCat(
+      wbHead('اختلاف المربين',600,42,.3,C.gold,30),
+      [wbT('محاولات لتعريف التربية',600,92,1.9,24,C.purple),
+       wbT('لكن الآراء اختلفت كثيرا',600,138,6.4,22)],
+      wbChip('الغرض',705,194,104,7.4,C.purple,20),wbChip('الأهداف',595,194,104,9.0,C.gold,20),wbChip('المجتمع',485,194,104,10.9,C.green,20),
+      wbHead('أفلاطون',600,262,12.5,C.gold,28),
+      [wbT('427 – 347 ق.م',600,298,14.2,20,C.purple),
+       wbT('فرد صالح في المجتمع',600,342,16.7,24),
+       wbT('التربية ليست غاية لذاتها',600,380,20.5,22,C.pink)],
+      wbChip('نجاح المجتمع وسعادته',600,424,300,23.1,C.green,20),
+      wbHead('تعريف أفلاطون',200,262,26.6,C.gold,26),
+      [wbT('إعطاء الجسم والروح',200,310,28.5,24,C.purple),
+       wbT('كل ما يمكن من',200,346,30.3,22)],
+      wbChip('الجمال',270,396,120,33.2,C.gold,22),wbChip('الكمال',130,396,120,35.7,C.green,22))},
+    /* 2: أرسطو + مدخل التعريفات الحديثة */
+    {title:'أرسطو',src:'s4-l2-scene2.mp3',dur:38.95,
+     cam:[[0,Q.TR],[12.3,Q.BR],[20.1,Q.BL],[31.4,Q.TL],[37.3,FULL]],
+     els:wbCat(
+      wbHead('أرسطو',600,42,.3,C.gold,32),
+      [wbT('384 – 322 ق.م',600,88,2.1,20,C.purple),
+       wbT('تلميذ أفلاطون',600,134,3.0,24),
+       wbT('كل ما هو نبيل وخير',600,176,6.0,24,C.green),
+       wbT('يصل إلى السعادة',600,214,9.0,24,C.gold)],
+      wbHead('تعريف أرسطو',600,262,12.5,C.gold,26),
+      [wbT('إعداد العقل لكسب العلم',600,312,13.0,24,C.purple),
+       wbT('كما تُعدّ الأرض',600,356,15.6,22),
+       wbT('للنبات والزروع',600,396,17.0,22,C.green),
+       wbP('M735 440L735 410',18.2,.6),wbP('M735 428Q716 424 712 410',18.7,.5),wbP('M735 420Q754 416 758 402',19.1,.5)],
+      wbHead('تعريفات حديثة',200,262,20.3,C.gold,28),
+      [wbT('ثلاثة تعاريف',200,306,22.0,24,C.purple)],
+      wbChip('التكيف',320,356,104,24.0,C.purple,20),wbChip('النمو',200,356,104,27.1,C.gold,20),wbChip('التنشئة',80,356,104,28.4,C.green,20),
+      [wbT('كل تعريف بزاوية مختلفة',200,412,30.0,20,C.gold)],
+      wbHead('التعريف الأول',200,45,31.7,C.gold,28),
+      [wbT('تكيف الفرد مع بيئته',200,96,33.5,24,C.purple)])},
+    /* 3: التعريف الأول (التكيف) + التعريف الثاني (النمو) */
+    {title:'التكيف والنمو',src:'s4-l2-scene3.mp3',dur:39.67,
+     cam:[[0,Q.TR],[11.8,Q.BR],[21.7,Q.BL],[29.8,Q.TL],[38.2,FULL]],
+     els:wbCat(
+      wbHead('التربية عملية تكيّف',600,42,.4,C.gold,28),
+      [wbT('بين الفرد وبيئته',600,92,2.5,24,C.purple),
+       wbT('الإنسان كائن يسعى للبقاء',600,136,4.0,21),
+       wbT('يعدّل سلوكه وقدراته',600,176,6.8,22,C.gold),
+       wbT('ويعدّل بيئته',600,214,9.2,22,C.green)],
+      wbHead('الوظيفة الأساسية',600,262,11.9,C.gold,26),
+      [wbT('ملاءمة الحاجات',600,310,13.6,24,C.purple),
+       wbT('مع الظروف المحيطة',600,352,17.0,22),
+       wbT('للحياة مع الآخرين',600,398,19.0,24,C.green)],
+      wbHead('التعريف الثاني',200,262,21.9,C.gold,28),
+      [wbT('التربية عملية نمو',200,308,22.9,24,C.purple)],
+      wbChip('الجسم',320,360,104,25.3,C.purple,20),wbChip('العقل',200,360,104,27.1,C.gold,20),wbChip('الأخلاق',80,360,104,28.6,C.green,20),
+      wbHead('استعدادات فطرية',200,45,30.0,C.gold,26),
+      [wbT('جو اجتماعي مناسب',200,96,33.6,22,C.purple),
+       wbT('ورعاية المربي',200,134,34.9,22),
+       wbT('فتتفتح وتكتمل',200,176,36.6,22,C.green)])},
+    /* 4: شمولية النمو + التعريف الثالث (التنشئة الاجتماعية) */
+    {title:'التنشئة الاجتماعية',src:'s4-l2-scene4.mp3',dur:36.96,
+     cam:[[0,Q.TR],[12.3,Q.BR],[21.9,Q.BL],[34.0,Q.TL]],
+     els:wbCat(
+      wbHead('النمو أشمل',600,42,.4,C.gold,30),
+      [wbT('التكيف جزء من النمو',600,92,2.0,24,C.purple),
+       wbP(wbCirc(690,176,46),6.0,1.2),wbP(wbCirc(690,180,20),7.4,.8),
+       wbT('النمو',560,168,6.5,22,C.gold),wbT('التكيف',560,206,8.0,22,C.purple)],
+      wbHead('النمو مستمر',600,262,12.4,C.gold,26),
+      [wbT('ومتزايد دائما',600,310,14.2,24,C.purple),
+       wbT('من طفل صغير',600,354,16.0,24),
+       wbT('إلى فرد بالغ',600,398,19.2,24,C.green)],
+      wbHead('التعريف الثالث',200,262,22.0,C.gold,28),
+      [wbT('التنشئة الاجتماعية',200,306,23.5,24,C.purple)],
+      wbChip('جيل الكهول',320,356,120,26.3,C.purple,20),
+      [wbArrow(255,145,356,27.4,.8)],
+      wbChip('الأطفال',80,356,120,28.9,C.green,20),
+      [wbT('معارف · رموز · قيم',200,412,31.0,22,C.gold)],
+      wbHead('تمرير المعارف',200,45,34.1,C.gold,26),
+      [wbT('من جيل لجيل',200,96,35.4,24,C.purple)])},
+    /* 5: أنواع المعارف + التربية التقليدية + الفلسفة المثالية */
+    {title:'التربية التقليدية',src:'s4-l2-scene5.mp3',dur:37.08,
+     cam:[[0,Q.TR],[11.2,Q.BR],[19.3,Q.BL],[31.0,Q.TL]],
+     els:wbCat(
+      wbHead('أنواع المعارف',600,42,.4,C.gold,28),
+      wbRow('حضارية','التاريخ',715,520,110,2.8,4.0,C.purple),
+      wbRow('علمية','رياضيات وفيزياء',715,520,152,5.8,7.0,C.gold),
+      wbRow('عملية','حروف ومهارات جسمية',715,520,198,8.4,9.6,C.green),
+      wbHead('التربية التقليدية',600,262,11.6,C.gold,26),
+      [wbT('تعتمد على التراث',600,310,13.0,24,C.purple),
+       wbT('معارف · رموز · قيم',600,352,15.2,22),
+       wbT('تمريره إلى الأطفال',600,394,16.8,22,C.gold),
+       wbT('مجتمع ثابت المعالم',600,436,17.9,22,C.pink)],
+      wbHead('الفلسفة المثالية',200,262,19.5,C.gold,28),
+      wbChip('أفلاطون',320,352,104,22.3,C.purple,20),wbChip('ديكارت',200,352,104,23.6,C.gold,20),wbChip('كانط',80,352,104,25.0,C.green,20),
+      wbChip('باشلار',200,398,104,26.4,C.pink,20),
+      [wbT('الفكرة تسبق الواقع',200,436,28.2,22,C.blue)],
+      wbHead('اتجاه المعرفة',200,45,31.2,C.gold,26),
+      [wbT('من المجرد',200,96,33.7,24,C.purple),
+       wbT('إلى المحسوس',200,134,35.0,24,C.green)])}
+  ];
+  var WB_QZ2={
+    1:{q:'شبّه أرسطو إعداد العقل لكسب العلم بإعداد:',o:['السفينة للبحر','الأرض للنبات والزروع','البيت للسكن'],a:1},
+    3:{q:'أي تعريف يرى التربية تمريرا للمعارف والقيم من جيل لجيل؟',o:['التربية تكيّف','التربية نمو','التربية تنشئة اجتماعية'],a:2},
+    4:{q:'بأي فلسفة تأثر رواد التربية التقليدية؟',o:['المثالية','البراغماتية','الواقعية'],a:0}
+  };
+  /* ===== فيديو الوايت بورد: المورفولوجيا الرياضية - المحاضرة 1 (مفتاح 1-1) ===== */
+  var WB_SCENES3=[
+    /* 1: هل تعرف جسمك؟ */
+    {title:'هل تعرف جسمك؟',src:'s1-l1-scene1.mp3',dur:23.54,
+     cam:[[0,Q.TR],[5.5,Q.BR],[13.6,Q.BL],[22.2,FULL]],
+     els:wbCat(
+      wbHead('هل تعرف جسمك؟',600,42,.3,C.gold,30),
+      [wbT('شخصان وزنهما 80 كغ',600,92,1.6,22,C.purple)],
+      wbChip('الشخص أ',705,170,110,3.0,C.purple,20),wbChip('الشخص ب',485,170,110,4.2,C.green,20),
+      wbHead('هل أجسامهما متشابهة؟',600,262,5.7,C.gold,26),
+      [wbT('أ: قليل النشاط البدني',600,312,8.0,22,C.purple),
+       wbT('ب: يمارس رياضة القوة',600,356,10.0,22,C.green),
+       wbT('الوزن واحد',600,402,12.0,24,C.pink)],
+      wbHead('أين الاختلاف؟',200,262,13.9,C.gold,28),
+      wbChip('العضلات',320,320,104,15.5,C.purple,20),wbChip('الدهون',200,320,104,17.5,C.gold,20),wbChip('الشكل',80,320,104,19.5,C.green,20),
+      wbChip('الأبعاد',200,376,104,21.0,C.pink,20))},
+    /* 2: ماذا تعني المورفولوجيا؟ */
+    {title:'مفهوم المورفولوجيا',src:'s1-l1-scene2.mp3',dur:28.58,
+     cam:[[0,Q.TR],[8.6,Q.BR],[17.3,Q.BL],[24.6,Q.TL]],
+     els:wbCat(
+      wbHead('المورفولوجيا',600,42,.3,C.gold,32),
+      [wbT('العلم الذي يدرس',600,92,2.4,24,C.purple)],
+      wbChip('الشكل',705,142,104,3.4,C.purple,20),wbChip('البنية',595,142,104,4.8,C.gold,20),wbChip('الأبعاد',485,142,104,6.0,C.green,20),
+      [wbT('والتركيب',600,212,7.0,22,C.pink)],
+      wbHead('بنية الجسم',600,262,8.9,C.gold,26),
+      [wbT('الشكل · الأبعاد · النسب',600,310,11.6,22,C.purple),
+       wbT('التركيب',600,352,13.0,22),
+       wbT('والخصائص الجسمية',600,396,15.5,22,C.green)],
+      wbHead('مثال',200,262,17.4,C.gold,28),
+      [wbT('طويل القامة',200,306,18.5,22),
+       wbT('عريض الكتفين',200,346,20.0,22,C.purple),
+       wbT('كتلة عضلية كبيرة',200,386,21.5,22,C.green),
+       wbT('خصائص مورفولوجية',200,430,23.0,24,C.gold)],
+      wbHead('المورفولوجيا الرياضية',200,45,24.9,C.gold,24),
+      [wbT('الجسم والنشاط البدني',200,96,26.5,22,C.purple)])},
+    /* 3: لماذا ندرس المورفولوجيا؟ */
+    {title:'لماذا ندرسها؟',src:'s1-l1-scene3.mp3',dur:31.34,
+     cam:[[0,Q.TR],[10.2,Q.BR],[18.4,Q.BL],[29.5,FULL]],
+     els:wbCat(
+      wbHead('لماذا ندرسها؟',600,42,.3,C.gold,30),
+      [wbT('أنتم أساتذة تربية بدنية',600,92,1.0,22,C.purple),
+       wbT('تعرفون جسم التلميذ',600,136,3.8,22)],
+      wbChip('النمو',705,190,104,6.7,C.purple,20),wbChip('الفروق',595,190,104,8.0,C.gold,20),wbChip('القوام',485,190,104,9.0,C.green,20),
+      wbHead('فوائد أخرى',600,262,10.5,C.gold,26),
+      [wbT('متابعة التغيرات',590,312,11.0,22),wbChk(738,304,11.3),
+       wbT('الوقاية من مشاكل القوام',590,356,15.1,22),wbChk(738,348,15.4),
+       wbT('علاقة الجسم بالرياضة',590,400,16.8,22),wbChk(738,392,17.1)],
+      wbHead('التوجيه الرياضي',200,262,18.6,C.gold,26),
+      [wbT('مساعدة في التوجيه',200,310,20.4,22,C.purple),
+       wbT('لا يُختزل في الشكل',200,352,23.5,22,C.pink),
+       wbT('الجسم وحده لا يكفي',200,396,26.5,22,C.gold)])},
+    /* 4: أهمية المورفولوجيا في المجال الرياضي */
+    {title:'الأهمية الرياضية',src:'s1-l1-scene4.mp3',dur:25.46,
+     cam:[[0,Q.TR],[11.5,Q.BR],[21.8,Q.BL]],
+     els:wbCat(
+      wbHead('أهمية المورفولوجيا',600,42,.3,C.gold,28),
+      [wbT('ثلاث وظائف',600,92,2.0,24,C.purple)],
+      wbChip('الانتقاء والتوجيه',600,150,260,5.2,C.green,20),
+      wbChip('تحسين الأداء',600,194,260,8.9,C.gold,20),
+      wbChip('متابعة الرياضي',600,290,260,12.0,C.purple,20),
+      [wbT('قياسات دورية',600,350,14.2,22),
+       wbT('تقييم برنامج التدريب',600,394,17.0,22,C.green),
+       wbT('ومدى فعاليته',600,434,19.8,22,C.pink)],
+      wbHead('خصوصية كل رياضة',200,262,22.0,C.gold,24),
+      [wbT('مؤشرات خاصة',200,310,23.2,22,C.purple)])},
+    /* 5: الجسم يتغير */
+    {title:'الجسم يتغير',src:'s1-l1-scene5.mp3',dur:28.03,
+     cam:[[0,Q.TR],[12.0,Q.BR],[21.5,Q.BL],[27.0,FULL]],
+     els:wbCat(
+      wbHead('الجسم يتغير',600,42,.3,C.gold,30),
+      [wbT('شخصان في العمر نفسه',600,92,1.0,22,C.purple),
+       wbT('ومرحلة نمو مختلفة؟',600,136,4.6,22,C.pink)],
+      wbChip('الجنس',705,190,104,7.6,C.purple,20),wbChip('النضج',595,190,104,8.6,C.gold,20),wbChip('الوراثة',485,190,104,9.6,C.green,20),
+      wbHead('عوامل النمو',600,262,12.5,C.gold,26),
+      wbChip('التغذية',705,312,104,13.2,C.purple,20),wbChip('الهرمونات',595,312,104,14.4,C.gold,20),wbChip('المناخ',485,312,104,16.0,C.green,20),
+      wbChip('النشاط البدني',650,360,150,17.4,C.pink,20),wbChip('النوم',520,360,104,19.0,C.blue,20),
+      wbChip('الظروف المعيشية',600,408,200,19.8,C.purple,20),
+      wbHead('الفروق الفردية',200,262,21.6,C.gold,26),
+      [wbT('لكل فرد إيقاعه',200,310,23.3,22,C.purple),
+       wbT('ونموه الخاص',200,352,25.5,22,C.green)])}
+  ];
+  var WB_QZ3={
+    0:{q:'هل يعني تساوي الوزن تشابه تركيب الجسم؟',o:['نعم دائما','لا، قد يختلف التركيب','فقط عند الرجال'],a:1},
+    1:{q:'المورفولوجيا هي العلم الذي يدرس:',o:['شكل وبنية وأبعاد وتركيب الجسم','الهرمونات فقط','التغذية فقط'],a:0},
+    4:{q:'أي مما يلي من عوامل اختلاف النمو؟',o:['لون الملابس','التغذية والنوم والوراثة','نوع الهاتف'],a:1}
+  };
+  var WB_DATA={'1-1':{scenes:WB_SCENES3,quiz:WB_QZ3},'4-1':{scenes:WB_SCENES,quiz:WB_QZ},'4-2':{scenes:WB_SCENES2,quiz:WB_QZ2}};
+
+  function wbFmt(s){s=Math.floor(s||0);var m=Math.floor(s/60),r=s%60;return (m<10?'0':'')+m+':'+(r<10?'0':'')+r}
+
+  function wbBuild(stage){
+    WB_S.sc=WB_SCENES.map(function(sc){
+      var svg=document.createElementNS(NS,'svg');
+      svg.setAttribute('class','wb-svg');svg.setAttribute('viewBox',FULL.join(' '));svg.setAttribute('preserveAspectRatio','xMidYMid meet');
+      var nodes=sc.els.map(function(e){
+        var n;
+        if(e.k==='p'){
+          n=document.createElementNS(NS,'path');n.setAttribute('d',e.d);n.setAttribute('pathLength','1');n.setAttribute('class','wb-ln');
+          n.setAttribute('fill',e.fc||'none');if(e.fc)n.setAttribute('fill-opacity','0');
+        }else{
+          n=document.createElementNS(NS,'text');n.setAttribute('class','wb-tx');n.setAttribute('x',e.x);n.setAttribute('y',e.y);
+          n.setAttribute('font-size',e.s);n.setAttribute('opacity','0');n.textContent=e.t;
+          if(e.c)n.style.fill=e.c;
+        }
+        svg.appendChild(n);return n;
+      });
+      var pen=document.createElementNS(NS,'g');pen.setAttribute('class','wb-pen');pen.setAttribute('opacity','0');
+      var pb=document.createElementNS(NS,'path');pb.setAttribute('d','M0 0L12 -10H74V10H12Z');pb.setAttribute('fill',WB_COL.gold);pb.setAttribute('class','wb-pen-b');
+      pen.appendChild(pb);svg.appendChild(pen);
+      stage.appendChild(svg);
+      return {svg:svg,nodes:nodes,pen:pen};
+    });
+  }
+
+  /* Render scene k at local time t (seconds). Pure function of t, so seek/restart are exact. */
+  function wbDraw(k,t){
+    var sc=WB_SCENES[k],b=WB_S.sc[k],cam=sc.cam,i=-1,v,j,p;
+    for(j=0;j<cam.length;j++)if(cam[j][0]<=t)i=j;
+    if(i<0)v=cam[0][1];
+    else{
+      var from=i>0?cam[i-1][1]:cam[i][1],to=cam[i][1];
+      p=Math.min(1,(t-cam[i][0])/1.8);p=p*p*(3-2*p);
+      v=to.map(function(x,z){return from[z]+(x-from[z])*p});
+    }
+    b.svg.setAttribute('viewBox',v.map(function(x){return x.toFixed(2)}).join(' '));
+    var act=null;
+    sc.els.forEach(function(e,z){
+      var n=b.nodes[z];
+      if(e.k==='p'){
+        var pr=Math.max(0,Math.min(1,(t-e.at)/e.dur));
+        n.setAttribute('stroke-dasharray','1 3');
+        n.setAttribute('stroke-dashoffset',(1-pr).toFixed(4));
+        if(e.fc)n.setAttribute('fill-opacity',(Math.max(0,Math.min(1,(t-e.fat)/.9))*e.fo).toFixed(3));
+        if(pr>0&&pr<1)act=[n,pr];
+      }else{
+        n.setAttribute('opacity',Math.max(0,Math.min(1,(t-e.at)/.6)).toFixed(3));
+      }
+    });
+    if(act){
+      var len=act[0]._len||(act[0]._len=act[0].getTotalLength());
+      var pt=act[0].getPointAtLength(act[1]*len);
+      b.pen.setAttribute('transform','translate('+pt.x.toFixed(1)+' '+pt.y.toFixed(1)+') rotate(-38)');
+      b.pen.setAttribute('opacity','1');
+    }else b.pen.setAttribute('opacity','0');
+  }
+
+  function wbTotal(){return WB_S.dur.reduce(function(a,b){return a+b},0)}
+  function wbBtn(){
+    var b=$('wbplay');if(!b)return;
+    b.textContent=WB_S.phase==='end'?'↺':(WB_S.playing?'❚❚':'▶');
+    b.setAttribute('aria-label',WB_S.phase==='end'?'إعادة المشاهدة':(WB_S.playing?'إيقاف مؤقت':'تشغيل'));
+  }
+  function wbUI(){
+    if(!WB_S.host)return;
+    var k=WB_S.idx,tot=wbTotal(),bef=0,i;
+    for(i=0;i<k;i++)bef+=WB_S.dur[i];
+    var a=WB_S.aud[k],cur=bef+((a&&a.currentTime)||0);
+    if(WB_S.phase==='end')cur=tot;
+    $('wbfill').style.width=Math.min(100,cur/tot*100).toFixed(2)+'%';
+    $('wbtime').textContent=wbFmt(cur)+' / '+wbFmt(tot);
+    $('wbscene').innerHTML='المشهد <b>'+(k+1)+'</b> من '+WB_SCENES.length+' · '+WB_SCENES[k].title;
+    wbBtn();
+  }
+
+  function wbLoop(){
+    WB_S.raf=0;
+    if(!WB_S.playing)return;
+    var a=WB_S.aud[WB_S.idx];
+    wbDraw(WB_S.idx,a.currentTime);
+    wbUI();
+    WB_S.raf=requestAnimationFrame(wbLoop);
+  }
+  function wbPlay(){
+    if(!WB_S.host)return;
+    if(WB_S.phase!=='play')return;
+    var a=WB_S.aud[WB_S.idx],pr=a.play();
+    if(pr&&pr.catch)pr.catch(function(){WB_S.playing=false;wbBtn()});
+    WB_S.playing=true;wbBtn();
+    if(!WB_S.raf)WB_S.raf=requestAnimationFrame(wbLoop);
+  }
+  function wbPause(){
+    WB_S.playing=false;
+    var a=WB_S.aud[WB_S.idx];if(a)a.pause();
+    if(WB_S.raf){cancelAnimationFrame(WB_S.raf);WB_S.raf=0}
+    wbUI();
+  }
+  function wbClearQuiz(){
+    clearTimeout(WB_S.timer);
+    if(WB_S.quizEl){WB_S.quizEl.innerHTML='';WB_S.quizEl.hidden=true}
+  }
+  function wbGo(k,t){
+    WB_S.aud.forEach(function(a,i){if(i!==k)a.pause()});
+    WB_S.idx=k;
+    WB_S.sc.forEach(function(b,i){b.svg.classList.toggle('on',i===k)});
+    try{WB_S.aud[k].currentTime=t||0}catch(e){}
+    wbDraw(k,t||0);
+    wbUI();
+  }
+  function wbNext(i){
+    if(i<WB_SCENES.length-1){wbGo(i+1,0);wbPlay()}
+    else{
+      WB_S.phase='end';WB_S.playing=false;
+      wbDraw(i,WB_S.dur[i]);
+      wbUI();
+      var box=WB_S.quizEl;
+      box.innerHTML='<div class="wb-end"><button class="qbtn pri" type="button" id="wbagain">إعادة المشاهدة</button></div>';
+      box.hidden=false;
+      $('wbagain').onclick=wbReset;
+    }
+  }
+  function wbQuiz(i){
+    var Q=WB_QUIZ[i],box=WB_S.quizEl,done=false;
+    WB_S.phase='quiz';WB_S.playing=false;wbBtn();
+    box.innerHTML='<div class="wb-quiz"><div class="mq-q">'+Q.q+'</div><div class="mq-o">'+
+      Q.o.map(function(o,j){return '<button class="opt" type="button" data-j="'+j+'">'+o+'</button>'}).join('')+
+      '</div><div class="wb-qact"><button class="qbtn" type="button" data-skip>تخطي</button></div></div>';
+    box.hidden=false;
+    function finish(){
+      if(done)return;done=true;
+      wbClearQuiz();
+      WB_S.phase='play';
+      wbNext(i);
+    }
+    var btns=box.querySelectorAll('.opt');
+    btns.forEach(function(b){
+      b.onclick=function(){
+        if(WB_S.ans[i])return;
+        WB_S.ans[i]=true;
+        var j=+b.getAttribute('data-j');
+        btns.forEach(function(x){x.disabled=true});
+        if(j===Q.a)b.classList.add('ok');
+        else{b.classList.add('no');btns[Q.a].classList.add('ok')}
+        WB_S.timer=setTimeout(finish,1800);
+      };
+    });
+    box.querySelector('[data-skip]').onclick=function(){WB_S.ans[i]=true;finish()};
+  }
+  function wbEnded(i){
+    if(WB_S.idx!==i||WB_S.phase!=='play')return;
+    wbPause();
+    wbDraw(i,WB_S.aud[i].duration||WB_S.dur[i]);
+    if(WB_QUIZ[i]&&!WB_S.ans[i]){wbQuiz(i);return}
+    wbNext(i);
+  }
+  function wbReset(){
+    wbClearQuiz();
+    WB_S.ans={};
+    WB_S.phase='play';
+    wbGo(0,0);
+    wbPlay();
+  }
+  function wbToggle(){
+    if(WB_S.phase==='end'){wbReset();return}
+    if(WB_S.phase==='quiz')return;
+    if(WB_S.playing)wbPause();else wbPlay();
+  }
+  function wbSeek(frac){
+    var target=frac*wbTotal(),acc=0,k=0,t=0,wasPlaying=WB_S.playing;
+    for(k=0;k<WB_SCENES.length;k++){
+      var d=WB_S.dur[k];
+      if(target<acc+d||k===WB_SCENES.length-1){t=target-acc;break}
+      acc+=d;
+    }
+    WB_S.playing=false;
+    if(WB_S.raf){cancelAnimationFrame(WB_S.raf);WB_S.raf=0}
+    WB_S.aud.forEach(function(a){a.pause()});
+    wbClearQuiz();
+    WB_S.phase='play';
+    wbGo(k,Math.max(0,Math.min(t,WB_S.dur[k]-.05)));
+    if(wasPlaying)wbPlay();
+  }
+  function wbStop(){
+    if(!WB_S.host)return;
+    WB_S.playing=false;
+    if(WB_S.raf){cancelAnimationFrame(WB_S.raf);WB_S.raf=0}
+    WB_S.aud.forEach(function(a){a.pause()});
+    clearTimeout(WB_S.timer);
+    WB_S.host=null;WB_S.phase='idle';
+  }
+  function wbMount(host,key){
+    wbStop();
+    WB_SCENES=WB_DATA[key].scenes;WB_QUIZ=WB_DATA[key].quiz;
+    host.innerHTML='<div class="wb" id="wbwrap"><div class="wb-stage" id="wbstage"><button class="wb-fs" id="wbfs" type="button" aria-label="ملء الشاشة">⛶</button></div>'+
+      '<div class="wb-ctrl"><button class="wb-btn" id="wbplay" type="button" aria-label="تشغيل">▶</button>'+
+      '<button class="wb-btn" id="wbre" type="button" aria-label="إعادة التشغيل">↺</button>'+
+      '<div class="wb-prog" id="wbprog" role="progressbar" aria-label="شريط التقدم"><i id="wbfill"></i></div>'+
+      '<span class="wb-time" id="wbtime"></span></div>'+
+      '<div class="wb-info"><span id="wbscene"></span><span id="wbmsg"></span></div>'+
+      '<div id="wbquiz" hidden></div></div>';
+    WB_S.host=host;WB_S.phase='play';WB_S.playing=false;WB_S.raf=0;WB_S.ans={};WB_S.idx=0;
+    WB_S.quizEl=$('wbquiz');
+    wbBuild($('wbstage'));
+    WB_S.dur=WB_SCENES.map(function(s){return s.dur});
+    WB_S.aud=WB_SCENES.map(function(sc,i){
+      var a=new Audio(encodeURI(sc.src));
+      a.preload='auto';
+      a.addEventListener('loadedmetadata',function(){if(isFinite(a.duration))WB_S.dur[i]=a.duration;wbUI()});
+      a.addEventListener('ended',function(){wbEnded(i)});
+      a.addEventListener('error',function(){$('wbmsg').textContent='تعذّر تحميل الصوت: ضع ملفات MP3 بجانب index.html'});
+      return a;
+    });
+    $('wbplay').onclick=wbToggle;
+    $('wbre').onclick=wbReset;
+    $('wbfs').onclick=function(){
+      var d=document,w=$('wbwrap');
+      if(d.fullscreenElement||d.webkitFullscreenElement){
+        (d.exitFullscreen||d.webkitExitFullscreen).call(d);
+      }else{
+        var rq=w.requestFullscreen||w.webkitRequestFullscreen;
+        if(rq)rq.call(w);
+        try{screen.orientation.lock('landscape')}catch(e){}
+      }
+    };
+    $('wbprog').onclick=function(e){var r=this.getBoundingClientRect();wbSeek(Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)))};
+    wbGo(0,0);
+  }
+
   function tab(t){
-    T=t;document.querySelectorAll('.tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.t===t)});
+    wbStop();T=t;document.querySelectorAll('.tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.t===t)});
     var p=$('panel'),html='',c=cur()||{},LS=c.lesson,SM=c.summary,FQ=c.faq,MQ=c.mcq,empty={read:'لم يتوفر الدرس بعد',sum:'لا يوجد ملخص',faq:'لا توجد أسئلة',mcq:'لا توجد أسئلة',map:'ستتوفر الخريطة الذهنية عند توفر الدرس'};
+    if(t==='wb'){var wk=(S+1)+'-'+L;if(WB_DATA[wk])wbMount(p,wk);else p.innerHTML='<p style="text-align:center;margin:30px auto">سيتم إضافة فيديو هذه المحاضرة لاحقاً</p>';return}
     if(!c.lesson){html='<p style="text-align:center;margin:30px auto">'+empty[t]+'</p>';p.innerHTML=html;return}
     if(t==='faq'){flashDeck(p,FQ||[]);return}
     if(t==='mcq'){mcqDeck(p,MQ||[]);return}
